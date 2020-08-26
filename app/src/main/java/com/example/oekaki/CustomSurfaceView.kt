@@ -132,6 +132,26 @@ class CustomSurfaceView: SurfaceView, SurfaceHolder.Callback{
         /// 前回のキャンバスを描画
         prevCanvas!!.drawPath(path!!, paint!!)
     }
+
+    /// resetメソッド
+    fun reset() {
+        ///初期化とキャンバスクリア
+        initializeBitmap()
+        canvas = surfaceHolder!!.lockCanvas()
+        canvas?.drawColor(0, PorterDuff.Mode.CLEAR)
+        surfaceHolder!!.unlockCanvasAndPost(canvas)
+    }
+
+    /// color チェンジメソッド
+    fun changeColor(colorSelected: String) {
+        when (colorSelected) {
+            "black" -> color = Color.BLACK
+            "red" -> color = Color.RED
+            "green" -> color = Color.GREEN
+            "white" -> color = Color.WHITE
+        }
+        paint!!.color = color as Int
+    }
 }
 //// pathクラスの情報とそのpathの色情報を保存する
 data class pathInfo(
