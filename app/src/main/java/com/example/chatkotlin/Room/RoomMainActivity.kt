@@ -8,14 +8,9 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
-import com.example.chatkotlin.Board.Button_board
 import com.example.chatkotlin.Board.CustomSurfaceView
 import com.example.chatkotlin.Board.Draw_data
-import com.example.chatkotlin.Message.ChatlogActivity
-import com.example.chatkotlin.Message.NewMassageActivity
-import com.example.chatkotlin.Message.UserItem
 import com.example.chatkotlin.R
-import com.example.chatkotlin.User.User
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -24,7 +19,11 @@ import com.squareup.picasso.Picasso
 import com.xwray.groupie.GroupAdapter
 import com.xwray.groupie.ViewHolder
 import kotlinx.android.synthetic.main.activity_board.*
-import kotlinx.android.synthetic.main.activity_new_massage.*
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
+import java.nio.charset.Charset
+import kotlin.concurrent.thread
 
 
 class RoomMainActivity : AppCompatActivity() {
@@ -38,6 +37,7 @@ class RoomMainActivity : AppCompatActivity() {
     var user_list = arrayOf<String>("aa","aa","aa","aa","aa")
     val hand0= Handler()
 
+    private var questionItem: List<*> = ArrayList<Any?>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +49,10 @@ class RoomMainActivity : AppCompatActivity() {
 
 //        room_id = "room_1"
 //        user_id = "-MHUSFkLXeAht73QVyuz"
-        user_count = 5
+//        user_count = 5
+
+        //csvファイルの読み込み
+        readQuestionData()
 
         //gameのセット数
         when(user_count){
@@ -63,16 +66,16 @@ class RoomMainActivity : AppCompatActivity() {
 //        ref_gameset.child("game_set_max").setValue(game_set_max)
 
         setContentView(R.layout.activity_board)
-
+        layout_construct()
 
         val customSurfaceView = CustomSurfaceView(this, surfaceView_write)
         //初期設定
         //customSurfaceViewにroom_idを渡す
         customSurfaceView.set_room_id(room_id)
         //firebaseに初期値を入れる
-        set_firebase_content()
+        set_firebase_construct()
         val btn: Button = findViewById(R.id.btn_to_another_board_activity)
-        layout_write()
+
         i = 0
         firebase_watch(customSurfaceView)
         surface_write_fun(customSurfaceView)
@@ -97,73 +100,78 @@ class RoomMainActivity : AppCompatActivity() {
             override fun onCancelled(p0: DatabaseError) {
             }
         })
-
-
         game_set = 1
 
         //データベースを削除しなければエラー（古い順化から取得するため）
         //代入の前に読み込んでしまうため遅らせる
-        hand0.postDelayed(Runnable {
-//            Log.d("user_list",user_list[0])
-//            Log.d("user_list",user_list[1])
-//            Log.d("user_list","user_id:$user_id")
-//            Log.d("user_list","user_count:$user_count")
-//            Log.d("user_list",user_list[game_set % user_count])
-            if(user_id == user_list[game_set % user_count]){
-                //writeの関数
-                //お題の選定とfirebaseに保存
-
-                //writeのレイアウト
-                i = 2
-                layout_write()
-                surface_write_fun(customSurfaceView)
-            }else{
-                //watchの関数
-                //watchのレイアウト
-                i = 1
-                layout_watch()
-                surface_watch_fun(customSurfaceView)
-            }
-            game_set++
-        },500)
+//        hand0.postDelayed(Runnable {
+//            if(user_id == user_list[game_set % user_count]){
+//                //writeの関数
+//                //お題の選定とfirebaseに保存
+//
+//                //writeのレイアウト
+//                i = 2
+//                layout_write("お題")
+//                surface_write_fun(customSurfaceView)
+//            }else{
+//                //watchの関数
+//                //watchのレイアウト
+//                i = 1
+//                layout_watch()
+//                surface_watch_fun(customSurfaceView)
+//            }
+//            game_set++
+//        },500)
         //game_set=1
 
 
-//        Log.d("user_list", (game_set%user_count).toString())
-//        Log.d("user_list",user_list[game_set % user_count].toString())
-
-
-
-        //game_setが終わったかどうかを取ってくる(firebaseに変更があったら) 2回目以降
+        //game_setが終わったかどうかを取ってくる(firebaseに変更があったら) 1回目以降
+        var game_set_num = 0
         val ref_set = FirebaseDatabase.getInstance().getReference("Room/$room_id/game/game_set")
         ref_set.addValueEventListener(object: ValueEventListener {
             override fun onDataChange(p0: DataSnapshot) {
-                Log.d("user_list",user_list[0])
-                Log.d("user_list",user_list[1])
-                Log.d("user_list","user_id:$user_id")
-                Log.d("user_list","user_count:$user_count")
-                Log.d("user_list",user_list[game_set % user_count])
-                //gameが終了するかどうか
-                if(game_set+1 == game_set_max){
-                    //ゲームの終了画面に移行
-                    Log.d("test","end game")
-                    //Firebaseの初期化
-                }
-                //game_set % user_count の値の人が書く人
-                if(user_id == user_list[game_set % user_count]){
-                    //writeの関数
-                    i = 2
-                    layout_write()
-                    surface_write_fun(customSurfaceView)
+                //ゲームスタートと答えの表示
+                if(game_set_num==0){
+                    //スタートの表示
+                    textView_answer_result.text = "ゲームスタート"
+                    textView_answer_result.setVisibility(View.VISIBLE)
                 }else{
-                    //watchの関数
-                    //watchのレイアウト
-                    i = 1
-                    layout_watch()
-                    surface_watch_fun(customSurfaceView)
+                    //答えの表示
+                    textView_answer_result.text = "答え\n「$answer」"
+                    textView_answer_result.setVisibility(View.VISIBLE)
                 }
-                //game_setが終われば
-                game_set++
+                game_set_num++
+                hand0.postDelayed(Runnable {
+                    textView_answer_result.setVisibility(View.GONE)
+                    customSurfaceView.reset()
+
+                    //gameが終了するかどうか
+                    if(game_set+1 == game_set_max){
+                        //ゲームの終了画面に移行
+                        Log.d("test","end game")
+                        //Firebaseの初期化
+                        FirebaseDatabase.getInstance().getReference("Room/$room_id/game/game_set")
+                    }
+                    //game_set % user_count の値の人が書く人
+                    if(user_id == user_list[game_set % user_count]){
+                        //お題の選定とfirebaseに保存
+                        val a = RandomChoice()
+                        FirebaseDatabase.getInstance().getReference("Room/$room_id/game/answer").setValue(a)
+                        //writeの関数
+                        i = 2
+                        layout_write(a)
+                        surface_write_fun(customSurfaceView)
+                    }else{
+                        //watchの関数
+                        //watchのレイアウト
+                        i = 1
+                        layout_watch()
+                        surface_watch_fun(customSurfaceView)
+                    }
+                    //game_setが終われば
+                    game_set++
+
+                },4000)
             }
             override fun onCancelled(p0: DatabaseError) {
 
@@ -171,9 +179,6 @@ class RoomMainActivity : AppCompatActivity() {
         })
 
         //答えの表示
-
-
-
 
 
 
@@ -210,8 +215,9 @@ class RoomMainActivity : AppCompatActivity() {
                 val text: String = room_message_text.text.toString()
                 if(text == answer){
                     //firebaseに保存
-                    val refe = FirebaseDatabase.getInstance().getReference("Room/$room_id/game/game_set")
-                    refe.setValue(game_set)
+                    val refe = FirebaseDatabase.getInstance().getReference("Room/$room_id/game")
+                    refe.child("game_set").setValue(game_set)
+                    refe.child("answer").setValue(text)
                 }
                 val ref = FirebaseDatabase.getInstance().getReference("Room/$room_id/Message")
                 ref.child("text").setValue(text)
@@ -250,23 +256,55 @@ class RoomMainActivity : AppCompatActivity() {
         aa++
     }
 
-    fun layout_write(){
-        btn_board_reset.setVisibility(View.VISIBLE)
-        room_btn_change_color.setVisibility(View.VISIBLE)
-        whiteBtn.setVisibility(View.VISIBLE)
-
-        room_message_btn.setVisibility(View.INVISIBLE)
-        room_message_text.setVisibility(View.INVISIBLE)
-        blackBtn.setVisibility(View.INVISIBLE)
-        redBtn.setVisibility(View.INVISIBLE)
-        greenBtn.setVisibility(View.INVISIBLE)
-
+    fun layout_construct(){
+        //answer message
         room_answer_text_1.setVisibility(View.GONE)
         room_answer_text_2.setVisibility(View.GONE)
         room_answer_text_3.setVisibility(View.GONE)
         textview_announce_write.setVisibility(View.GONE)
+        textview_announce_watch.setVisibility(View.GONE)
+        textView_odai.setVisibility(View.GONE)
+        textView_answer_result.setVisibility(View.GONE)
+
+        //write button
+        btn_board_reset.setVisibility(View.INVISIBLE)
+        room_btn_change_color.setVisibility(View.INVISIBLE)
+        whiteBtn.setVisibility(View.INVISIBLE)
+        blackBtn.setVisibility(View.INVISIBLE)
+        redBtn.setVisibility(View.INVISIBLE)
+        greenBtn.setVisibility(View.INVISIBLE)
+    }
+    fun layout_write(view_odai: String){
+        //announce
+        textview_announce_write.setVisibility(View.VISIBLE)
+        hand0.postDelayed(Runnable {
+            textview_announce_write.setVisibility(View.INVISIBLE)
+        },3000)
+        textView_odai.text = "お題は「$view_odai」です"
+        textView_odai.setVisibility(View.VISIBLE)
+
+        //write button
+        btn_board_reset.setVisibility(View.VISIBLE)
+        room_btn_change_color.setVisibility(View.VISIBLE)
+        whiteBtn.setVisibility(View.VISIBLE)
+        blackBtn.setVisibility(View.INVISIBLE)
+        redBtn.setVisibility(View.INVISIBLE)
+        greenBtn.setVisibility(View.INVISIBLE)
+
+        //watch button
+        room_message_btn.setVisibility(View.INVISIBLE)
+        room_message_text.setVisibility(View.INVISIBLE)
     }
     fun layout_watch(){
+        //announce
+        textview_announce_watch.setVisibility(View.VISIBLE)
+        hand0.postDelayed(Runnable {
+            textview_announce_watch.setVisibility(View.INVISIBLE)
+        },3000)
+
+        textView_odai.setVisibility(View.GONE)
+
+        //write button
         btn_board_reset.setVisibility(View.INVISIBLE)
         room_btn_change_color.setVisibility(View.INVISIBLE)
         whiteBtn.setVisibility(View.INVISIBLE)
@@ -274,6 +312,7 @@ class RoomMainActivity : AppCompatActivity() {
         redBtn.setVisibility(View.INVISIBLE)
         greenBtn.setVisibility(View.INVISIBLE)
 
+        //watch button
         room_message_btn.setVisibility(View.VISIBLE)
         room_message_text.setVisibility(View.VISIBLE)
     }
@@ -323,7 +362,7 @@ class RoomMainActivity : AppCompatActivity() {
 
     }
     //firebaseに初期値を代入
-    fun set_firebase_content(){
+    fun set_firebase_construct(){
         val pass_down = FirebaseDatabase.getInstance().getReference("Room/$room_id")
         pass_down.child("draw/draw_up/x").setValue("0")
         pass_down.child("draw/draw_up/y").setValue("0")
@@ -336,6 +375,7 @@ class RoomMainActivity : AppCompatActivity() {
         pass_down.child("game/answer").setValue("aaa")
         pass_down.child("Message/text").setValue("aaa")
         pass_down.child("game/from_user_id").setValue("bbb")
+        pass_down.child("game/game_set").setValue("1")
     }
 
     //色変更ボタンを閉じる
@@ -485,4 +525,55 @@ class RoomMainActivity : AppCompatActivity() {
 
 
 
+    fun readQuestionData() {
+        val `is` = resources.openRawResource(R.raw.test_01)
+        val `is2` = resources.openRawResource(R.raw.test_01)
+
+        val reader = BufferedReader(
+            InputStreamReader(
+                `is`,
+                Charset.forName("UTF-8")
+            )
+        )
+
+        val reader2 = BufferedReader(
+            InputStreamReader(
+                `is2`,
+                Charset.forName("UTF-8")
+            )
+        )
+
+        var line = ""
+        try {
+            var a =0
+            while (reader2.readLine() != null ) {
+                line = reader.readLine()
+
+                val abc = line.split(",")
+
+
+                val item = QuestionItem()
+//                item.question_id(tokens[0])
+//                item.setQuestion_item(tokens[1])
+                questionItem+=abc[1]
+
+                Log.d("read", "Just created: ${questionItem[a]}")
+                a++
+            }
+        } catch (e: IOException) {
+            Log.wtf("read", "Error reading data file on line $line", e)
+            e.printStackTrace()
+        }
+        Log.d("read", "$questionItem")
+    }
+    fun RandomChoice(): String{
+        val r = (0..9).shuffled().first()
+        Log.d("read", "Just created: ${questionItem[r]}")
+        return questionItem[r].toString()
+    }
+
 }
+data class Button_board(
+    var reset: String? = "a",
+    var color: String? = "black",
+)
